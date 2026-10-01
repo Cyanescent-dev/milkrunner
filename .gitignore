@@ -1,0 +1,14 @@
+# Build outputs and packaged apps
+build/
+dist/
+outputs/
+work/
+
+# Third-party source and builds: fetched by scripts/fetch_projectm.sh
+external/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.xcuserstate
