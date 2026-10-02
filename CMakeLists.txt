@@ -12,14 +12,18 @@ endif()
 project(MilkRunnerVisualizer
     VERSION 0.1.0
     DESCRIPTION "A free MilkDrop-compatible visualizer frontend powered by a portable renderer abstraction"
-    LANGUAGES CXX OBJCXX
+    LANGUAGES CXX
 )
+
+if(APPLE)
+    enable_language(OBJCXX)
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_OBJCXX_STANDARD 20)
-set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 
 option(MILK_RUNNER_ENABLE_PROJECTM "Build the optional libprojectM renderer when projectM4 is available" ON)
 option(MILK_RUNNER_ENABLE_QT_MULTIMEDIA "Build live audio capture when Qt Multimedia is available" ON)
@@ -33,7 +37,7 @@ if(CMAKE_PREFIX_PATH)
     list(APPEND QT_ADDITIONAL_PACKAGES_PREFIX_PATH ${CMAKE_PREFIX_PATH})
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS
+find_package(Qt6 6.4 REQUIRED COMPONENTS
     Core
     Gui
     OpenGL
@@ -44,7 +48,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
 
 set(MILK_RUNNER_HAS_QT_MULTIMEDIA OFF)
 if(MILK_RUNNER_ENABLE_QT_MULTIMEDIA)
-    find_package(Qt6 6.5 QUIET COMPONENTS Multimedia)
+    find_package(Qt6 6.4 QUIET COMPONENTS Multimedia)
     if(TARGET Qt6::Multimedia)
         set(MILK_RUNNER_HAS_QT_MULTIMEDIA ON)
         message(STATUS "Qt Multimedia found: enabling live audio input")
@@ -64,7 +68,7 @@ if(MILK_RUNNER_ENABLE_PROJECTM)
     endif()
 endif()
 
-qt_standard_project_setup(REQUIRES 6.5)
+qt_standard_project_setup(REQUIRES 6.4)
 
 set(MILK_RUNNER_APP_SOURCES
     src/main.cpp
@@ -75,7 +79,6 @@ set(MILK_RUNNER_APP_SOURCES
     src/audio/AudioInput.cpp
     src/audio/AudioInput.h
     src/audio/MacosSystemAudioInput.h
-    src/audio/MacosSystemAudioInput.mm
     src/audio/DemoAudioInput.cpp
     src/audio/DemoAudioInput.h
     src/audio/QtAudioInput.cpp
@@ -101,6 +104,12 @@ set(MILK_RUNNER_APP_SOURCES
     src/render/ProjectMRenderer.h
 )
 
+if(APPLE)
+    list(APPEND MILK_RUNNER_APP_SOURCES src/audio/MacosSystemAudioInput.mm)
+else()
+    list(APPEND MILK_RUNNER_APP_SOURCES src/audio/MacosSystemAudioInput_unsupported.cpp)
+endif()
+
 qt_add_executable(MilkRunnerVisualizer
     MACOSX_BUNDLE
     ${MILK_RUNNER_APP_SOURCES}
@@ -109,6 +118,7 @@ qt_add_executable(MilkRunnerVisualizer
 qt_add_qml_module(MilkRunnerVisualizer
     URI MilkRunnerVisualizer
     VERSION 1.0
+    RESOURCE_PREFIX /qt/qml
     QML_FILES
         src/ui/qml/Main.qml
         src/ui/qml/VisualizerView.qml
@@ -131,14 +141,22 @@ target_link_libraries(MilkRunnerVisualizer
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
+)
+
+if(APPLE)
+    target_link_libraries(MilkRunnerVisualizer PRIVATE
         "-framework CoreMIDI"
         "-framework CoreAudio"
         "-framework CoreFoundation"
         "-framework CoreMedia"
         "-framework ScreenCaptureKit"
-)
-
-target_compile_definitions(MilkRunnerVisualizer PRIVATE __MACOSX_CORE__)
+    )
+    target_compile_definitions(MilkRunnerVisualizer PRIVATE __MACOSX_CORE__)
+elseif(UNIX)
+    find_package(ALSA REQUIRED)
+    target_link_libraries(MilkRunnerVisualizer PRIVATE ALSA::ALSA pthread)
+    target_compile_definitions(MilkRunnerVisualizer PRIVATE __LINUX_ALSA__)
+endif()
 
 if(MILK_RUNNER_HAS_QT_MULTIMEDIA)
     target_compile_definitions(MilkRunnerVisualizer PRIVATE MILK_RUNNER_HAS_QT_MULTIMEDIA=1)
@@ -151,13 +169,19 @@ if(MILK_RUNNER_HAS_PROJECTM)
 endif()
 
 set_target_properties(MilkRunnerVisualizer PROPERTIES
-    OUTPUT_NAME "Milk Runner Visualizer"
     MACOSX_BUNDLE_GUI_IDENTIFIER "org.milkrunner.visualizer"
     MACOSX_BUNDLE_BUNDLE_NAME "Milk Runner Visualizer"
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
 )
+
+if(APPLE)
+    set_target_properties(MilkRunnerVisualizer PROPERTIES OUTPUT_NAME "Milk Runner Visualizer")
+else()
+    # The QML module creates a "MilkRunnerVisualizer/" directory in the build tree, so the binary needs another name.
+    set_target_properties(MilkRunnerVisualizer PROPERTIES OUTPUT_NAME "milk-runner-visualizer")
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

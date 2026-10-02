@@ -363,6 +363,11 @@ private:
         }
 
         const QString failedPath = QString::fromStdString(failure->presetPath.string());
+        // projectM reports the built-in "idle://" preset through the failure callback even though it renders
+        // normally; surfacing it showed a spurious "idle://: std::exception" status.
+        if (failedPath.startsWith(QStringLiteral("idle://"))) {
+            return;
+        }
         if (!failedPath.isEmpty()) {
             failedPresetPaths_.insert(failedPath.toStdString());
         }

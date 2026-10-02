@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Pane {
+    // Emoji need a colour-emoji font; use plain text on platforms where it is not guaranteed.
+    readonly property bool useEmoji: Qt.platform.os === "osx"
     id: root
     padding: 0
     background: null
@@ -85,7 +87,7 @@ Pane {
             }
 
             ToolButton {
-                text: "⚙️ Auto-DJ"
+                text: useEmoji ? "⚙️ Auto-DJ" : "Auto-DJ"
                 onClicked: autoDjPopup.open()
             }
         }
