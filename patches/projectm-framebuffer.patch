@@ -1,0 +1,35 @@
+diff --git a/src/libprojectM/ProjectM.cpp b/src/libprojectM/ProjectM.cpp
+index ae9390e..42037f5 100644
+--- a/src/libprojectM/ProjectM.cpp
++++ b/src/libprojectM/ProjectM.cpp
+@@ -92,6 +92,11 @@ void ProjectM::ResetTextures()
+ 
+ void ProjectM::RenderFrame()
+ {
++    GLint outputReadFramebuffer = 0;
++    GLint outputDrawFramebuffer = 0;
++    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &outputReadFramebuffer);
++    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &outputDrawFramebuffer);
++
+     // Don't render if window area is zero.
+     if (m_windowWidth == 0 || m_windowHeight == 0)
+     {
+@@ -167,7 +172,7 @@ void ProjectM::RenderFrame()
+     m_activePreset->RenderFrame(audioData, renderContext);
+ 
+     // ToDo: Allow external apps to provide a custom target framebuffer.
+-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, outputDrawFramebuffer);
+ 
+     if (m_transition != nullptr && m_transitioningPreset != nullptr)
+     {
+@@ -178,6 +183,9 @@ void ProjectM::RenderFrame()
+         m_textureCopier->Draw(m_activePreset->OutputTexture(), false, false);
+     }
+ 
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, outputReadFramebuffer);
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, outputDrawFramebuffer);
++
+     m_frameCount++;
+     m_previousFrameVolume = audioData.vol;
+ }
