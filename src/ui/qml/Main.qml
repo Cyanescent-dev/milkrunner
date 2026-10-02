@@ -5,6 +5,8 @@ import QtQuick.Layouts
 import QtQuick.Window
 
 ApplicationWindow {
+    // Emoji need a colour-emoji font; use plain text on platforms where it is not guaranteed.
+    readonly property bool useEmoji: Qt.platform.os === "osx"
     id: root
     width: 1280
     height: 820
@@ -78,7 +80,7 @@ ApplicationWindow {
             spacing: 14
 
             Label {
-                text: "🥛 Milk Runner Visualizer"
+                text: useEmoji ? "🥛 Milk Runner Visualizer" : "Milk Runner Visualizer"
                 font.pixelSize: 16
                 font.bold: true
                 color: "#f2f4f8"
@@ -86,7 +88,7 @@ ApplicationWindow {
 
             Button {
                 id: headerImportBtn
-                text: "📁 Import Folder"
+                text: useEmoji ? "📁 Import Folder" : "Import Folder"
                 font.bold: true
                 font.pixelSize: 13
                 contentItem: Text {
@@ -109,7 +111,7 @@ ApplicationWindow {
             
             Button {
                 id: headerFullscreenBtn
-                text: root.visibility === Window.FullScreen ? "Exit Fullscreen" : "⛶ Fullscreen"
+                text: root.visibility === Window.FullScreen ? "Exit Fullscreen" : (useEmoji ? "⛶ Fullscreen" : "Fullscreen")
                 font.pixelSize: 13
                 contentItem: Text {
                     text: headerFullscreenBtn.text
@@ -166,27 +168,27 @@ ApplicationWindow {
                 spacing: 4
                 
                 ToolButton {
-                    text: "⏮"
+                    text: useEmoji ? "⏮" : "Prev"
                     font.pixelSize: 18
                     onClicked: appController.previousPreset()
                 }
                 ToolButton {
-                    text: appController.playbackPaused ? "▶️" : "⏸"
+                    text: appController.playbackPaused ? (useEmoji ? "▶️" : "Play") : (useEmoji ? "⏸" : "Pause")
                     font.pixelSize: 18
                     onClicked: appController.togglePlaybackPaused()
                 }
                 ToolButton {
-                    text: "⏭"
+                    text: useEmoji ? "⏭" : "Next"
                     font.pixelSize: 18
                     onClicked: appController.nextPreset()
                 }
                 ToolButton {
-                    text: appController.presetLocked ? "🔒" : "🔓"
+                    text: appController.presetLocked ? (useEmoji ? "🔒" : "Locked") : (useEmoji ? "🔓" : "Lock")
                     font.pixelSize: 18
                     onClicked: appController.togglePresetLock()
                 }
                 ToolButton {
-                    text: "🔀"
+                    text: useEmoji ? "🔀" : "Random"
                     font.pixelSize: 18
                     onClicked: appController.randomPreset()
                 }
@@ -199,7 +201,7 @@ ApplicationWindow {
                 spacing: 8
                 
                 Label {
-                    text: appController.selectedAudioInputDevice.indexOf("System Audio") !== -1 ? "🔊" :
+                    text: !useEmoji ? "Input" : appController.selectedAudioInputDevice.indexOf("System Audio") !== -1 ? "🔊" :
                           (appController.selectedAudioInputDevice === "Scion MIDI" ? "🎹" : "🎤")
                     font.pixelSize: 15
                     ToolTip.visible: inputIconHover.hovered
@@ -234,7 +236,7 @@ ApplicationWindow {
                 ToolSeparator {}
 
                 ToolButton {
-                    text: "⚙️"
+                    text: useEmoji ? "⚙️" : "Settings"
                     font.pixelSize: 16
                     onClicked: settingsPopup.open()
                 }

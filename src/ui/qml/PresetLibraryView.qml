@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Pane {
+    // Emoji need a colour-emoji font; use plain text on platforms where it is not guaranteed.
+    readonly property bool useEmoji: Qt.platform.os === "osx"
     id: root
     padding: 12
 
@@ -20,7 +22,7 @@ Pane {
 
             TextField {
                 id: searchField
-                placeholderText: "🔍 Search presets"
+                placeholderText: useEmoji ? "🔍 Search presets" : "Search presets"
                 text: presetLibrary.filterText
                 selectByMouse: true
                 Layout.fillWidth: true
@@ -71,7 +73,7 @@ Pane {
 
                 Button {
                     id: emptyImportBtn
-                    text: "📁 Import Preset Folder"
+                    text: useEmoji ? "📁 Import Preset Folder" : "Import Preset Folder"
                     font.bold: true
                     font.pixelSize: 13
                     Layout.alignment: Qt.AlignHCenter

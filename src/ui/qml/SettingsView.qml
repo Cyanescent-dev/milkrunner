@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 Popup {
+    // Emoji need a colour-emoji font; use plain text on platforms where it is not guaranteed.
+    readonly property bool useEmoji: Qt.platform.os === "osx"
     id: root
     padding: 24
     modal: true
@@ -27,7 +29,7 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             Label {
-                text: "⚙️ Settings"
+                text: useEmoji ? "⚙️ Settings" : "Settings"
                 font.pixelSize: 18
                 font.bold: true
                 color: "#ffffff"
