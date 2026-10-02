@@ -190,3 +190,21 @@ and documentation only.
 Milk Runner Visualizer is MIT licensed. Qt and libprojectM have their own
 licenses and distribution obligations. See `docs/LEGAL_NOTES.md` for the
 project-specific branding and preset-pack policy.
+
+## Building on Linux
+
+Tested on Ubuntu 24.04 (ARM64) with Qt 6.4:
+
+```bash
+sudo apt install cmake ninja-build g++ qt6-base-dev qt6-declarative-dev qt6-multimedia-dev qt6-tools-dev \
+  qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window \
+  qml6-module-qtquick-dialogs qml6-module-qtqml-workerscript libgl1-mesa-dev libegl1-mesa-dev libglu1-mesa-dev \
+  libasound2-dev libpulse-dev libxkbcommon-dev
+scripts/build_projectm_linux.sh          # fetches, patches and builds libprojectM 4.1.6
+cmake -S . -B build -G Ninja && cmake --build build
+LD_LIBRARY_PATH=external/projectm-install/lib build/milk-runner-visualizer
+```
+
+Headless check: `xvfb-run -a build/milk-runner-visualizer`. macOS-only features (system audio capture) are
+compiled out on Linux. Note: `build/` also contains a `MilkRunnerVisualizer/` QML module directory, so the Linux
+binary is named `milk-runner-visualizer`.
