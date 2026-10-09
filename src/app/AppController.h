@@ -1,4 +1,5 @@
 #pragma once
+#include <QJsonObject>
 
 #include "SettingsStore.h"
 #include "playlists/PlaylistManager.h"
@@ -47,6 +48,9 @@ class AppController : public QObject
     Q_PROPERTY(double audioGain READ audioGain WRITE setAudioGain NOTIFY audioSettingsChanged)
     Q_PROPERTY(QStringList audioInputDevices READ audioInputDevices NOTIFY audioDevicesChanged)
     Q_PROPERTY(QString selectedAudioInputDevice READ selectedAudioInputDevice WRITE setSelectedAudioInputDevice NOTIFY audioDevicesChanged)
+    Q_PROPERTY(QString audioFile READ audioFile NOTIFY audioSourceChanged)
+    Q_PROPERTY(bool audioLoop READ audioLoop WRITE setAudioLoop NOTIFY audioSourceChanged)
+    Q_PROPERTY(QStringList systemAudioDevices READ systemAudioDevices NOTIFY audioDevicesChanged)
     Q_PROPERTY(QString audioSourceName READ audioSourceName NOTIFY audioSourceChanged)
     Q_PROPERTY(QString audioStatusMessage READ audioStatusMessage NOTIFY audioSourceChanged)
     Q_PROPERTY(bool audioRunning READ audioRunning NOTIFY audioSourceChanged)
@@ -101,6 +105,16 @@ public:
     Q_INVOKABLE void togglePlaybackPaused();
     Q_INVOKABLE void togglePresetLock();
     Q_INVOKABLE void useDemoAudio();
+    Q_INVOKABLE bool useFileAudio(const QString& path, bool loop = false);
+    Q_INVOKABLE void restartFileAudio();
+    Q_INVOKABLE void stopAudio();
+    Q_INVOKABLE void refreshSystemAudioDevices() { emit audioDevicesChanged(); }
+    Q_INVOKABLE void useLinuxSystemAudio(const QString& device = "default");
+    QString audioFile() const { return audioFile_; }
+    bool audioLoop() const { return audioLoop_; }
+    void setAudioLoop(bool loop);
+    QStringList systemAudioDevices() const;
+    QJsonObject audioDiagnostics() const;
     Q_INVOKABLE void useLiveAudio();
     Q_INVOKABLE void useScionAudio();
     Q_INVOKABLE void useSystemAudio();
@@ -151,6 +165,8 @@ private:
     PresetLibraryModel* presetLibrary_ = nullptr;
     PlaylistManager* playlistManager_ = nullptr;
     std::unique_ptr<AudioInput> audioInput_;
+    QString audioFile_;
+    bool audioLoop_ = false;
     QTimer presetTimer_;
     QTimer presetProgressTimer_;
     QElapsedTimer presetCycleClock_;

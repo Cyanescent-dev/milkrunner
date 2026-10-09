@@ -2,6 +2,9 @@
 
 #include "audio/AudioInput.h"
 #include "audio/DemoAudioInput.h"
+#include "audio/FileAudioInput.h"
+#include "audio/LinuxSystemAudioInput.h"
+#include <QUrl>
 #include "audio/ScionAudioInput.h"
 #include "audio/QtAudioInput.h"
 #include "audio/MacosSystemAudioInput.h"
@@ -36,6 +39,9 @@ AppController::AppController(QObject* parent)
     
     if (selectedAudioInputDevice_ == QStringLiteral("System Audio (Desktop Output)")) {
         useSystemAudio();
+    } else if (selectedAudioInputDevice_ == QStringLiteral("File Audio")) {
+        if (!audioFile_.isEmpty()) restartFileAudio();
+        else { stopAudio(); audioStatusMessage_="Choose an audio file"; emit audioSourceChanged(); }
     } else if (selectedAudioInputDevice_ == QStringLiteral("Scion MIDI")) {
         useScionAudio();
     } else {
@@ -385,7 +391,36 @@ void AppController::useDemoAudio()
 
 void AppController::useSystemAudio()
 {
+    #ifdef Q_OS_LINUX
+    useLinuxSystemAudio();
+#else
     installAudioInput(std::make_unique<MacosSystemAudioInput>(), true);
+#endif
+}
+
+bool AppController::useFileAudio(const QString& path, bool loop)
+{
+    audioFile_ = path.startsWith("file:") ? QUrl(path).toLocalFile() : path;
+    audioLoop_ = loop;
+    selectedAudioInputDevice_ = "File Audio";
+    const bool started=installAudioInput(std::make_unique<FileAudioInput>(audioFile_, loop), false);
+    emit audioDevicesChanged();
+    return started;
+}
+void AppController::restartFileAudio() { if (!audioFile_.isEmpty()) useFileAudio(audioFile_,audioLoop_); }
+void AppController::setAudioLoop(bool loop) { audioLoop_=loop; restartFileAudio(); emit audioSourceChanged(); }
+void AppController::stopAudio() { if(audioInput_)audioInput_->stop(); emit audioSourceChanged(); }
+void AppController::useLinuxSystemAudio(const QString& device) {
+    selectedAudioInputDevice_=QStringLiteral("System Audio (Desktop Output)");
+    installAudioInput(std::make_unique<LinuxSystemAudioInput>(device),false);
+    emit audioDevicesChanged();
+}
+QStringList AppController::systemAudioDevices() const {
+    auto* input=dynamic_cast<LinuxSystemAudioInput*>(audioInput_.get()); return input?input->devices():QStringList{};
+}
+QJsonObject AppController::audioDiagnostics() const {
+    auto d=audioInput_?audioInput_->diagnostics():QJsonObject{{"audio_status","unavailable"}};
+    d["processed_rms"]=audioLevel_;d["processed_peak"]=audioPeakLevel_;return d;
 }
 
 void AppController::useLiveAudio()
@@ -409,7 +444,8 @@ void AppController::refreshAudioInputDevices()
     const QString previousSelection = selectedAudioInputDevice_;
     audioInputDevices_ = QtAudioInput::availableInputDeviceNames();
     audioInputDevices_.prepend(QStringLiteral("Scion MIDI"));
-    if (MacosSystemAudioInput::isSupported()) {
+    if (FileAudioInput::isSupported()) audioInputDevices_.prepend(QStringLiteral("File Audio"));
+    if (MacosSystemAudioInput::isSupported() || LinuxSystemAudioInput::isSupported()) {
         audioInputDevices_.prepend(QStringLiteral("System Audio (Desktop Output)"));
     }
     
@@ -531,6 +567,9 @@ void AppController::setSelectedAudioInputDevice(const QString& deviceName)
     
     if (selectedAudioInputDevice_ == QStringLiteral("System Audio (Desktop Output)")) {
         useSystemAudio();
+    } else if (selectedAudioInputDevice_ == QStringLiteral("File Audio")) {
+        if (!audioFile_.isEmpty()) restartFileAudio();
+        else { stopAudio(); audioStatusMessage_="Choose an audio file"; emit audioSourceChanged(); }
     } else if (selectedAudioInputDevice_ == QStringLiteral("Scion MIDI")) {
         useScionAudio();
     } else {
@@ -566,6 +605,9 @@ bool AppController::installAudioInput(std::unique_ptr<AudioInput> input, bool fa
         return false;
     }
 
+    const bool strictSource = dynamic_cast<FileAudioInput*>(input.get()) || dynamic_cast<LinuxSystemAudioInput*>(input.get());
+    if (strictSource && audioInput_) { audioInput_->stop(); audioInput_.reset(); }
+    audioStatusMessage_.clear();
     connect(input.get(), &AudioInput::errorOccurred, this, [this](const QString& message) {
         audioStatusMessage_ = message;
         emit audioSourceChanged();
@@ -579,6 +621,7 @@ bool AppController::installAudioInput(std::unique_ptr<AudioInput> input, bool fa
             audioStatusMessage_ = QStringLiteral("Could not start audio input.");
         }
 
+        if (strictSource && !fallbackToDemo) audioInput_=std::move(input);
         if (fallbackToDemo) {
             installAudioInput(std::make_unique<DemoAudioInput>(), false);
         } else {
@@ -839,7 +882,7 @@ void AppController::restartAudioOutput()
         audioOutputDevice_ = nullptr;
     }
 
-    if (playAudioOutput_ && !audioSourceName().startsWith(QStringLiteral("Input:"))) {
+    if (playAudioOutput_ && !dynamic_cast<LinuxSystemAudioInput*>(audioInput_.get()) && !audioSourceName().startsWith(QStringLiteral("Input:"))) {
         QAudioFormat format;
         format.setSampleRate(44100);
         format.setChannelCount(2);

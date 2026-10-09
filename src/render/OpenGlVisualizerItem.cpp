@@ -52,6 +52,7 @@ public:
         visualizerItem_ = const_cast<OpenGlVisualizerItem*>(visualizer);
 
         diagnosticsIntervalFrames_ = visualizer->diagnosticsIntervalFrames();
+        visualizer_ = const_cast<OpenGlVisualizerItem*>(visualizer);
         audioLevel_ = visualizer->audioLevel();
         renderScale_ = visualizer->renderScale();
         lowPowerMode_ = visualizer->lowPowerMode();
@@ -97,6 +98,7 @@ public:
 
     void render() override
     {
+        if (visualizer_) visualizer_->recordRenderFrame();
         const QSize viewportSize = framebufferObject() ? framebufferObject()->size() : QSize();
         const float deltaSeconds = lowPowerMode_ ? 1.0f / 30.0f : 1.0f / 60.0f;
         timeSeconds_ += deltaSeconds;
@@ -346,6 +348,10 @@ private:
 
         const std::size_t frameCount = queuedAudioPcm_.size() / static_cast<std::size_t>(queuedAudioChannels_);
         projectmRenderer_->submitAudio(queuedAudioPcm_.data(), frameCount, queuedAudioSampleRate_, queuedAudioChannels_);
+        if (visualizer_) {
+            double energy=0,peak=0;for(float sample:queuedAudioPcm_) {energy+=double(sample)*sample;peak=std::max(peak,std::abs(double(sample)));}
+            visualizer_->recordSubmittedAudio(frameCount,std::sqrt(energy/queuedAudioPcm_.size()),peak);
+        }
         lastSubmittedAudioFrameCount_ = frameCount;
         lastSubmittedAudioSampleRate_ = queuedAudioSampleRate_;
         lastSubmittedAudioChannels_ = queuedAudioChannels_;
@@ -624,6 +630,7 @@ private:
     int positionAttribute_ = -1;
     int bandAttribute_ = -1;
     float timeSeconds_ = 0.0f;
+    OpenGlVisualizerItem* visualizer_ = nullptr;
     float audioLevel_ = 0.0f;
     float renderScale_ = 1.0f;
     float presetDurationSeconds_ = 30.0f;
@@ -663,6 +670,7 @@ private:
 OpenGlVisualizerItem::OpenGlVisualizerItem(QQuickItem* parent)
     : QQuickFramebufferObject(parent)
 {
+    elapsed_.start();
     setMirrorVertically(true);
 }
 
@@ -746,7 +754,10 @@ void OpenGlVisualizerItem::submitAudioBlock(const QVector<float>& pcm, int sampl
 
     {
         QMutexLocker locker(&audioMutex_);
-        pendingAudioPcm_ = pcm;
+        if (pendingAudioSampleRate_ != sampleRate || pendingAudioChannels_ != channels) pendingAudioPcm_.clear();
+        pendingAudioPcm_ += pcm;
+        const int excess = pendingAudioPcm_.size() - sampleRate*channels;
+        if (excess > 0) { pendingAudioPcm_.remove(0,excess); droppedFrames_ += excess/channels; }
         pendingAudioSampleRate_ = sampleRate;
         pendingAudioChannels_ = channels;
         pendingAudioDirty_ = true;
@@ -845,3 +856,11 @@ void OpenGlVisualizerItem::setLowPowerMode(bool enabled)
     update();
     emit visualStateChanged();
 }
+
+QJsonObject OpenGlVisualizerItem::audioDiagnostics() const {
+    QMutexLocker locker(&audioMutex_);
+    return {{"render_pending_frames",pendingAudioChannels_>0?pendingAudioPcm_.size()/pendingAudioChannels_:0},{"rendered_frames",double(renderedFrames_.load())},{"elapsed_seconds",elapsed_.elapsed()/1000.0},{"average_fps",renderedFrames_.load()*1000.0/std::max<qint64>(1,elapsed_.elapsed())},{"pcm_frames_submitted",double(submittedFrames_.load())},{"non_silent_frames_submitted",double(submittedNonSilentFrames_.load())},{"submitted_rms",submittedRms_.load()},{"submitted_peak",submittedPeak_.load()},{"render_queue_frames_dropped",double(droppedFrames_)}};
+}
+void OpenGlVisualizerItem::recordSubmittedAudio(qint64 frames, double rms, double peak) { submittedFrames_ += frames; if(rms>0.00001) submittedNonSilentFrames_+=frames;submittedRms_=rms;submittedPeak_=peak; }
+
+void OpenGlVisualizerItem::recordRenderFrame() { ++renderedFrames_; }

@@ -1,4 +1,6 @@
 #include "app/AppController.h"
+#include "app/ProcessMetrics.h"
+#include "audio/LinuxSystemAudioInput.h"
 #include "app/AutomationOptions.h"
 #include "presets/PresetScanner.h"
 #include "render/OpenGlVisualizerItem.h"
@@ -32,8 +34,15 @@ int main(int argc, char* argv[])
     }
     if (automation.help) {
         QTextStream(stdout) << "--list-presets FOLDER | --preset FILE [--preset FILE ...] "
-                              "[--preset-interval 5..120] [--automation-status FILE] [--demo-audio]\n";
+                              "[--preset-interval 5..120] [--automation-status FILE] [--demo-audio] [--audio-file FILE --audio-loop] [--audio-source system --audio-device default] [--list-audio-devices] [--run-seconds 1..3600]\n";
         return 0;
+    }
+    if (automation.listAudioDevices) {
+        QCoreApplication core(argc,argv);LinuxSystemAudioInput input(automation.audioDevice);
+        if(!input.start()){QTextStream(stderr)<<"Linux system audio unavailable\n";return 3;}
+        QTimer::singleShot(1500,&core,[&]{QJsonArray devices;for(const auto& d:input.devices())devices.append(d);
+          auto status=input.diagnostics();status["devices"]=devices;QTextStream(stdout)<<QJsonDocument(status).toJson(QJsonDocument::Compact)<<'\n';core.exit(devices.isEmpty()?3:0);});
+        return core.exec();
     }
     if (!automation.listFolder.isEmpty()) {
         QCoreApplication core(argc, argv);
@@ -84,7 +93,27 @@ int main(int argc, char* argv[])
     darkPalette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 128, 142));
     app.setPalette(darkPalette);
 
+    if (automation.runSeconds) QTimer::singleShot(automation.runSeconds*1000,&app,&QCoreApplication::quit);
     AppController controller;
+    if (!automation.audioFile.isEmpty()) { if(!controller.useFileAudio(automation.audioFile,automation.audioLoop)) { QTextStream(stderr)<<controller.audioStatusMessage()<<'\n';return 3; } }
+    else if (automation.audioSource=="system") {
+#ifdef Q_OS_LINUX
+        if(!LinuxSystemAudioInput::isSupported()) { QTextStream(stderr)<<"Build has no Linux system capture support\n";return 3; }
+        controller.useLinuxSystemAudio(automation.audioDevice);
+#else
+        controller.useSystemAudio();
+        if(controller.audioSourceName()=="Demo audio") { QTextStream(stderr)<<"System audio unavailable\n";return 3; }
+#endif
+    }
+    else if (automation.audioSource=="live") controller.useLiveAudio();
+    else if (automation.audioSource=="scion") controller.useScionAudio();
+    else if (automation.demoAudio || automation.audioSource=="demo") controller.useDemoAudio();
+    if (!automation.audioSource.isEmpty() || !automation.audioFile.isEmpty())
+        QObject::connect(&controller,&AppController::audioSourceChanged,&app,[&]{
+            const auto d=controller.audioDiagnostics();
+            if(d["audio_status"]=="unavailable") QTextStream(stderr)<<d["error"].toString()<<" (will retry)\n";
+            if(d["audio_status"]=="error") { QTextStream(stderr)<<d["error"].toString()<<'\n';app.exit(3); }
+        });
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
@@ -139,6 +168,7 @@ int main(int argc, char* argv[])
             QJsonObject status{{"state", state->phase}, {"error", state->error},
                 {"updated_at", QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
                 {"active_preset", controller.activePresetPath()}, {"renderer_diagnostics", visual->diagnosticsText()},
+                {"process", processMetrics()}, {"audio", controller.audioDiagnostics()}, {"audio_delivery", visual->audioDiagnostics()},
                 {"audio_source", controller.audioSourceName()}, {"audio_running", controller.audioRunning()}, {"events", state->events}};
             const QByteArray bytes = QJsonDocument(status).toJson(QJsonDocument::Compact);
             // Set permissions on the temporary file before atomic commit;
@@ -171,12 +201,13 @@ int main(int argc, char* argv[])
             state->events.append(event);
             if (!writeStatus()) fail("Cannot write automation status");
         };
-        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [state, writeStatus]() {
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&, state, writeStatus]() {
+            controller.stopAudio();
             if (state->phase != "failed") state->phase = "stopped";
             writeStatus();
         });
         controller.setPresetLocked(true);
-        if (automation.demoAudio) controller.useDemoAudio();
+
         QObject::connect(visual, &OpenGlVisualizerItem::presetFailed, &app, [&, state, fail](const QString& path, const QString& message) {
             if (state->index >= 0 && QFileInfo(path).canonicalFilePath() == automation.presets.at(state->index)) fail("Preset render failed: " + path + ": " + message);
         });

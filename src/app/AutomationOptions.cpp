@@ -20,6 +20,12 @@ bool AutomationOptions::parse(const QStringList& arguments, QString& error)
     parser.addOption({"list-presets", "List scanned preset identities as JSON without a desktop.", "folder"});
     parser.addOption({"preset-interval", "Seconds per preset in a sequence (5–120).", "seconds", "5"});
     parser.addOption({"automation-status", "Write atomic JSON state/confirmed identities here.", "file"});
+    parser.addOption({"run-seconds", "Graceful timed shutdown (1..3600 seconds).", "seconds"});
+    parser.addOption({"audio-file", "Decode local music directly to projectM.", "file"});
+    parser.addOption({"audio-loop", "Loop file playback."});
+    parser.addOption({"audio-source", "Explicit source: file, system, demo, live or scion.", "source"});
+    parser.addOption({"audio-device", "System monitor name or default.", "device", "default"});
+    parser.addOption({"list-audio-devices", "List Linux monitor devices as JSON."});
     parser.addOption({"demo-audio", "Use deterministic demo audio for visual tests."});
     parser.addOption({{"h", "help"}, "Show automation options."});
     if (!parser.parse(arguments)) { error = parser.errorText(); return false; }
@@ -29,6 +35,18 @@ bool AutomationOptions::parse(const QStringList& arguments, QString& error)
     listFolder = parser.value("list-presets");
     statusFile = parser.value("automation-status");
     demoAudio = parser.isSet("demo-audio");
+    audioFile=parser.value("audio-file");audioLoop=parser.isSet("audio-loop");
+    audioSource=parser.value("audio-source");audioDevice=parser.value("audio-device");listAudioDevices=parser.isSet("list-audio-devices");
+    if (!audioFile.isEmpty()) {
+        QFile file(audioFile);
+        if (!QFileInfo(audioFile).isFile() || !file.open(QIODevice::ReadOnly)) { error="Audio file is missing or unreadable: "+audioFile;return false; }
+        if (!audioSource.isEmpty() && audioSource!="file") {error="--audio-file conflicts with --audio-source";return false;}
+        audioSource="file";
+    }
+    if ((!audioSource.isEmpty() && !QStringList{"file","system","demo","live","scion"}.contains(audioSource)) ||
+        (audioSource=="file" && audioFile.isEmpty()) || (audioLoop && audioFile.isEmpty()) ||
+        (demoAudio && !audioSource.isEmpty() && audioSource!="demo")) {error="Invalid or conflicting audio source options";return false;}
+    if (parser.isSet("run-seconds")) { bool ok=false;runSeconds=parser.value("run-seconds").toInt(&ok);if(!ok || runSeconds<1 || runSeconds>3600){error="Invalid --run-seconds";return false;} }
     bool valid = false;
     intervalSeconds = parser.value("preset-interval").toInt(&valid);
     if (!valid || intervalSeconds < 5 || intervalSeconds > 120 || presets.size() > 10) { error = "Invalid sequence timing/count"; return false; }

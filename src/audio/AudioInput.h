@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <QJsonObject>
 
 class AudioInput : public QObject
 {
@@ -17,6 +18,7 @@ public:
     virtual bool start() = 0;
     virtual void stop() = 0;
     virtual QString name() const = 0;
+    virtual QJsonObject diagnostics() const { return {{"audio_source",name()},{"audio_status",isRunning()?"active":"stopped"}}; }
 
 signals:
     void audioReady(const QVector<float>& pcm, int sampleRate, int channels);

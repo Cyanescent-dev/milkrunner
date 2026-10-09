@@ -117,6 +117,31 @@ Popup {
         }
 
         Label {
+            visible: appController.selectedAudioInputDevice === "File Audio"
+            text: appController.audioFile || "Choose an audio file using Open audio"
+            color: "#f0f3f8"
+            Layout.fillWidth: true
+            Layout.maximumWidth: 420
+            elide: Text.ElideMiddle
+        }
+        RowLayout {
+            visible: appController.selectedAudioInputDevice === "File Audio"
+            CheckBox {
+                id: fileLoop
+                text: "Loop audio file"
+                checked: appController.audioLoop
+                onToggled: appController.audioLoop = checked
+                contentItem: Text { text: fileLoop.text; font: fileLoop.font; color: "#f0f3f8"; leftPadding: fileLoop.indicator.width + fileLoop.spacing; verticalAlignment: Text.AlignVCenter }
+            }
+            Button { text: appController.audioRunning ? "Stop audio" : "Restart audio"; onClicked: appController.audioRunning ? appController.stopAudio() : appController.restartFileAudio() }
+        }
+        RowLayout {
+            visible: appController.audioSourceName === "Linux System Audio"
+            ComboBox { model: ["default"].concat(appController.systemAudioDevices); onActivated: appController.useLinuxSystemAudio(currentText); Layout.maximumWidth: 260 }
+            Button { text: "Refresh monitors"; onClicked: appController.refreshSystemAudioDevices() }
+        }
+
+        Label {
             text: "Scion Synth Layers"
             color: "#f0f3f8"
             font.pixelSize: 14
@@ -151,7 +176,7 @@ Popup {
 
         Switch {
             id: playInternalAudioSwitch
-            text: "Play Internal Audio (Scion)"
+            text: "Play Audio Output (File / Scion)"
             checked: appController.playAudioOutput
             onToggled: appController.playAudioOutput = checked
             Layout.fillWidth: true
