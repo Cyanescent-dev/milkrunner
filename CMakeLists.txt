@@ -262,6 +262,7 @@ if(BUILD_TESTING AND MILK_RUNNER_ENABLE_FILE_AUDIO)
     qt_add_executable(milk_runner_audio_tests tests/audio_tests.cpp
         src/audio/AudioInput.cpp src/audio/AudioInput.h
         src/audio/BufferedAudioInput.cpp src/audio/BufferedAudioInput.h
+        src/audio/DemoAudioInput.cpp src/audio/DemoAudioInput.h
         src/audio/FileAudioInput.cpp src/audio/FileAudioInput.h
         src/audio/LinuxSystemAudioInput.cpp src/audio/LinuxSystemAudioInput.h)
     target_include_directories(milk_runner_audio_tests PRIVATE src)

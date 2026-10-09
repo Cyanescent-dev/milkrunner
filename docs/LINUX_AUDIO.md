@@ -99,3 +99,5 @@ Arbitrary seeking/pause-with-position preservation and instantaneous min/max FPS
 are not implemented. Restart, real-time playback and average rendering FPS are.
 
 FFmpeg sample conversion follows the [libswresample API](https://ffmpeg.org/doxygen/6.1/group__lswr.html).
+
+Oracle acceptance receipt and returned PNGs: https://github.com/Cyanescent-dev/MyceliumWorkbench/blob/codex/linux-audio-support/cloud/docs/LINUX_AUDIO_ACCEPTANCE.md

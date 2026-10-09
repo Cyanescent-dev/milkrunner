@@ -1,3 +1,4 @@
+#include "audio/DemoAudioInput.h"
 #include "audio/FileAudioInput.h"
 #include "audio/LinuxSystemAudioInput.h"
 #include <QCoreApplication>
@@ -8,6 +9,7 @@
 #include <QTextStream>
 #include <QThread>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 static void require(bool test, const char* message)
 {
@@ -123,6 +125,31 @@ int main(int argc, char** argv)
             QTextStream(stdout) << "PASS " << ext
                                 << " decode/resample/mono/loop/2FPS/restart/EOF\n";
         }
+        qint64 oldFileFrames = 0, demoFrames = 0;
+        std::unique_ptr<AudioInput> selected =
+            std::make_unique<FileAudioInput>(dir.filePath("tone.wav"), true);
+        QObject::connect(selected.get(), &AudioInput::audioReady, &app,
+                         [&](const QVector<float>& pcm, int, int channels) {
+                             oldFileFrames += pcm.size() / channels;
+                         });
+        require(selected->start(), "switch source file start");
+        wait(100);
+        require(oldFileFrames > 0, "file delivers before switch");
+        selected->stop();
+        selected.reset();
+        const qint64 stoppedFrames = oldFileFrames;
+        selected = std::make_unique<DemoAudioInput>();
+        QObject::connect(selected.get(), &AudioInput::audioReady, &app,
+                         [&](const QVector<float>& pcm, int, int channels) {
+                             demoFrames += pcm.size() / channels;
+                         });
+        require(selected->start(), "switch source demo start");
+        wait(100);
+        require(demoFrames > 0 && oldFileFrames == stoppedFrames,
+                "switch must stop old PCM and deliver new source");
+        selected->stop();
+        selected.reset();
+        QTextStream(stdout) << "PASS file-to-demo source replacement without stale PCM\n";
         FileAudioInput missing(dir.filePath("missing.mp3"), false);
         require(!missing.start(), "missing rejected");
         QFile invalid(dir.filePath("invalid.mp3"));
