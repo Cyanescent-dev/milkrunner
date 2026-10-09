@@ -72,6 +72,8 @@ qt_standard_project_setup(REQUIRES 6.4)
 
 set(MILK_RUNNER_APP_SOURCES
     src/main.cpp
+    src/app/AutomationOptions.cpp
+    src/app/AutomationOptions.h
     src/app/AppController.cpp
     src/app/AppController.h
     src/app/SettingsStore.cpp
@@ -198,4 +200,12 @@ if(BUILD_TESTING)
     target_include_directories(milk_runner_core_tests PRIVATE src)
     target_link_libraries(milk_runner_core_tests PRIVATE Qt6::Core)
     add_test(NAME milk_runner_core_tests COMMAND milk_runner_core_tests)
+endif()
+
+if(BUILD_TESTING)
+    qt_add_executable(milk_runner_automation_tests
+        tests/automation_tests.cpp src/app/AutomationOptions.cpp src/presets/PresetScanner.cpp)
+    target_include_directories(milk_runner_automation_tests PRIVATE src)
+    target_link_libraries(milk_runner_automation_tests PRIVATE Qt6::Core)
+    add_test(NAME milk_runner_automation_tests COMMAND milk_runner_automation_tests)
 endif()

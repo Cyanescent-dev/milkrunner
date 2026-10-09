@@ -208,3 +208,22 @@ LD_LIBRARY_PATH=external/projectm-install/lib build/milk-runner-visualizer
 Headless check: `xvfb-run -a build/milk-runner-visualizer`. macOS-only features (system audio capture) are
 compiled out on Linux. Note: `build/` also contains a `MilkRunnerVisualizer/` QML module directory, so the Linux
 binary is named `milk-runner-visualizer`.
+
+### Deterministic visual test controls (candidate)
+
+`--list-presets FOLDER` prints identities/SHA-256 as JSON without a desktop.
+`--preset FILE` launches the exact preset; repeat (max 10 distinct files) for a
+sequence, `--preset-interval 5` controls dwell time (5–120 sec). Presets remain
+locked against ordinary playlist cycling. `--demo-audio` is optional deterministic
+visual-test input; it does not verify live audio capture.
+
+`--automation-status workspace-relative.json` writes atomic, group-readable JSON
+with requested/confirmed timestamps, exact preset identities/hashes, renderer
+diagnostics and audio state. A failed or unconfirmed preset exits with an error;
+last successful preset remains until Mycelium's managed stop. Use local file checks
+and status evidence, then match screenshot timestamps to confirmed intervals. For
+5 sec intervals, capture at 2,7,12,17,22 seconds to avoid transition boundaries.
+Status is evidence of renderer confirmation, not vision judgement or hardware
+acceleration. Continue to inspect actual screenshots. No network listener is added.
+
+Real Ubuntu/projectM screenshot acceptance is pending while trashcanx86 is offline.
