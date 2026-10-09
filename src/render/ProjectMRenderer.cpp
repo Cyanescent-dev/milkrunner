@@ -80,11 +80,13 @@ void ProjectMRenderer::submitAudio(const float* pcm, std::size_t frameCount, int
 {
 #ifdef MILK_RUNNER_HAS_PROJECTM
     if (handle_ && pcm && frameCount > 0) {
-        projectm_pcm_add_float(
-            handle_,
-            pcm,
-            static_cast<unsigned int>(std::min<std::size_t>(frameCount, projectm_pcm_get_max_samples())),
-            channels <= 1 ? PROJECTM_MONO : PROJECTM_STEREO);
+        const std::size_t limit = projectm_pcm_get_max_samples();
+        if (!limit) return;
+        for (std::size_t offset=0; offset<frameCount; offset+=limit) {
+            projectm_pcm_add_float(handle_, pcm + offset*(channels<=1?1:2),
+                static_cast<unsigned int>(std::min(limit,frameCount-offset)),
+                channels<=1?PROJECTM_MONO:PROJECTM_STEREO);
+        }
     }
 #else
     (void)pcm;

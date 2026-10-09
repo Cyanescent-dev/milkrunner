@@ -28,6 +28,39 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(MILK_RUNNER_ENABLE_PROJECTM "Build the optional libprojectM renderer when projectM4 is available" ON)
 option(MILK_RUNNER_ENABLE_QT_MULTIMEDIA "Build live audio capture when Qt Multimedia is available" ON)
 
+if(APPLE)
+    set(AUDIO_DEPENDENCY_DEFAULT OFF)
+else()
+    set(AUDIO_DEPENDENCY_DEFAULT ON)
+endif()
+option(MILK_RUNNER_ENABLE_FILE_AUDIO "FFmpeg file audio decoding" ${AUDIO_DEPENDENCY_DEFAULT})
+option(MILK_RUNNER_ENABLE_LINUX_SYSTEM_AUDIO "PulseAudio-compatible output capture" ${AUDIO_DEPENDENCY_DEFAULT})
+if(MILK_RUNNER_ENABLE_FILE_AUDIO OR (UNIX AND NOT APPLE AND MILK_RUNNER_ENABLE_LINUX_SYSTEM_AUDIO))
+    find_package(PkgConfig QUIET)
+endif()
+if(MILK_RUNNER_ENABLE_FILE_AUDIO)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat>=59 libavcodec libavutil libswresample)
+    elseif(APPLE)
+        # Homebrew libraries also work without adding pkg-config to a Mac build host.
+        find_path(FFMPEG_INCLUDE_DIR libavformat/avformat.h HINTS /opt/homebrew/opt/ffmpeg/include /usr/local/opt/ffmpeg/include REQUIRED)
+        add_library(PkgConfig::FFMPEG INTERFACE IMPORTED)
+        target_include_directories(PkgConfig::FFMPEG INTERFACE "${FFMPEG_INCLUDE_DIR}")
+        foreach(component avformat avcodec avutil swresample)
+            find_library(FFMPEG_${component}_LIBRARY NAMES ${component} HINTS /opt/homebrew/opt/ffmpeg/lib /usr/local/opt/ffmpeg/lib REQUIRED)
+            target_link_libraries(PkgConfig::FFMPEG INTERFACE "${FFMPEG_${component}_LIBRARY}")
+        endforeach()
+    else()
+        message(FATAL_ERROR "File audio requires pkg-config and FFmpeg development packages")
+    endif()
+endif()
+if(UNIX AND NOT APPLE AND MILK_RUNNER_ENABLE_LINUX_SYSTEM_AUDIO)
+    if(NOT PkgConfig_FOUND)
+        message(FATAL_ERROR "Linux system audio requires pkg-config and libpulse-dev")
+    endif()
+    pkg_check_modules(PULSE REQUIRED IMPORTED_TARGET libpulse)
+endif()
+
 set(MILK_RUNNER_LOCAL_PROJECTM_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/external/projectm-install")
 if(EXISTS "${MILK_RUNNER_LOCAL_PROJECTM_PREFIX}/lib/cmake/projectM4/projectM4Config.cmake")
     list(PREPEND CMAKE_PREFIX_PATH "${MILK_RUNNER_LOCAL_PROJECTM_PREFIX}")
@@ -78,6 +111,12 @@ set(MILK_RUNNER_APP_SOURCES
     src/app/AppController.h
     src/app/SettingsStore.cpp
     src/app/SettingsStore.h
+    src/audio/BufferedAudioInput.cpp
+    src/audio/BufferedAudioInput.h
+    src/audio/FileAudioInput.cpp
+    src/audio/FileAudioInput.h
+    src/audio/LinuxSystemAudioInput.cpp
+    src/audio/LinuxSystemAudioInput.h
     src/audio/AudioInput.cpp
     src/audio/AudioInput.h
     src/audio/MacosSystemAudioInput.h
@@ -145,6 +184,15 @@ target_link_libraries(MilkRunnerVisualizer
         Qt6::QuickControls2
 )
 
+if(MILK_RUNNER_ENABLE_FILE_AUDIO)
+    target_compile_definitions(MilkRunnerVisualizer PRIVATE MILK_RUNNER_HAS_FFMPEG=1)
+    target_link_libraries(MilkRunnerVisualizer PRIVATE PkgConfig::FFMPEG)
+endif()
+if(TARGET PkgConfig::PULSE)
+    target_compile_definitions(MilkRunnerVisualizer PRIVATE MILK_RUNNER_HAS_PULSE=1)
+    target_link_libraries(MilkRunnerVisualizer PRIVATE PkgConfig::PULSE)
+endif()
+
 if(APPLE)
     target_link_libraries(MilkRunnerVisualizer PRIVATE
         "-framework CoreMIDI"
@@ -208,4 +256,34 @@ if(BUILD_TESTING)
     target_include_directories(milk_runner_automation_tests PRIVATE src)
     target_link_libraries(milk_runner_automation_tests PRIVATE Qt6::Core)
     add_test(NAME milk_runner_automation_tests COMMAND milk_runner_automation_tests)
+endif()
+
+if(BUILD_TESTING AND MILK_RUNNER_ENABLE_FILE_AUDIO)
+    qt_add_executable(milk_runner_audio_tests tests/audio_tests.cpp
+        src/audio/AudioInput.cpp src/audio/AudioInput.h
+        src/audio/BufferedAudioInput.cpp src/audio/BufferedAudioInput.h
+        src/audio/FileAudioInput.cpp src/audio/FileAudioInput.h
+        src/audio/LinuxSystemAudioInput.cpp src/audio/LinuxSystemAudioInput.h)
+    target_include_directories(milk_runner_audio_tests PRIVATE src)
+    target_compile_definitions(milk_runner_audio_tests PRIVATE MILK_RUNNER_HAS_FFMPEG=1)
+    target_link_libraries(milk_runner_audio_tests PRIVATE Qt6::Core PkgConfig::FFMPEG)
+    if(TARGET PkgConfig::PULSE)
+        target_compile_definitions(milk_runner_audio_tests PRIVATE MILK_RUNNER_HAS_PULSE=1)
+        target_link_libraries(milk_runner_audio_tests PRIVATE PkgConfig::PULSE)
+    endif()
+    add_test(NAME milk_runner_audio_tests COMMAND milk_runner_audio_tests)
+    set_tests_properties(milk_runner_audio_tests PROPERTIES SKIP_RETURN_CODE 77)
+    add_test(NAME milk_runner_system_audio_tests COMMAND milk_runner_audio_tests --system)
+    set_tests_properties(milk_runner_system_audio_tests PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+if(BUILD_TESTING AND TARGET PkgConfig::PULSE)
+    qt_add_executable(milk_runner_audio_recovery_tests tests/audio_recovery_tests.cpp
+        src/audio/AudioInput.cpp src/audio/AudioInput.h
+        src/audio/BufferedAudioInput.cpp src/audio/BufferedAudioInput.h
+        src/audio/LinuxSystemAudioInput.cpp src/audio/LinuxSystemAudioInput.h)
+    target_include_directories(milk_runner_audio_recovery_tests PRIVATE src)
+    target_compile_definitions(milk_runner_audio_recovery_tests PRIVATE MILK_RUNNER_HAS_PULSE=1)
+    target_link_libraries(milk_runner_audio_recovery_tests PRIVATE Qt6::Core PkgConfig::PULSE)
+    add_test(NAME milk_runner_audio_recovery_tests COMMAND milk_runner_audio_recovery_tests)
+    set_tests_properties(milk_runner_audio_recovery_tests PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30)
 endif()

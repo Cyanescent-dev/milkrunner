@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QMutex>
+#include <atomic>
+#include <QElapsedTimer>
+#include <QJsonObject>
 #include <QQuickFramebufferObject>
 #include <QString>
 #include <QVector>
@@ -36,6 +39,9 @@ public:
     QString diagnosticsText() const;
     int diagnosticsIntervalFrames() const;
     void setDiagnosticsIntervalFrames(int frames);
+    QJsonObject audioDiagnostics() const;
+    void recordSubmittedAudio(qint64 frames, double rms, double peak);
+    void recordRenderFrame();
     bool takePendingAudio(QVector<float>& pcm, int& sampleRate, int& channels);
 
 public slots:
@@ -58,6 +64,12 @@ signals:
     void presetRenderConfirmed(const QString& presetPath, const QString& message);
 
 private:
+    std::atomic<qint64> submittedFrames_{0};
+    std::atomic<qint64> renderedFrames_{0};
+    std::atomic<qint64> submittedNonSilentFrames_{0};
+    std::atomic<double> submittedRms_{0}, submittedPeak_{0};
+    QElapsedTimer elapsed_;
+    qint64 droppedFrames_ = 0;
     int diagnosticsIntervalFrames_ = 30;
     float audioLevel_ = 0.0f;
     float renderScale_ = 1.0f;

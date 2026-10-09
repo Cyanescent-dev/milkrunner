@@ -1,5 +1,6 @@
 # Build outputs and packaged apps
 build/
+build-*/
 dist/
 outputs/
 work/
@@ -12,3 +13,5 @@ external/
 .idea/
 .vscode/
 *.xcuserstate
+
+__pycache__/

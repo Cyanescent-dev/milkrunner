@@ -5,6 +5,12 @@ import QtQuick.Layouts
 import QtQuick.Window
 
 ApplicationWindow {
+    FileDialog {
+        id: audioFilePicker
+        title: "Choose audio file"
+        nameFilters: ["Audio files (*.mp3 *.wav *.flac)", "All files (*)"]
+        onAccepted: appController.useFileAudio(selectedFile.toString(), appController.audioLoop)
+    }
     // Emoji need a colour-emoji font; use plain text on platforms where it is not guaranteed.
     readonly property bool useEmoji: Qt.platform.os === "osx"
     id: root
@@ -216,7 +222,8 @@ ApplicationWindow {
                     Layout.preferredWidth: 230
                     onActivated: appController.selectedAudioInputDevice = currentText
                 }
-                
+                Button { text: "Open audio"; visible: appController.selectedAudioInputDevice === "File Audio"; onClicked: audioFilePicker.open(); ToolTip.text: appController.audioFile; ToolTip.visible: hovered }
+
                 Slider {
                     from: 0.25
                     to: 8.0
