@@ -10,8 +10,7 @@ presets=sorted((root/'test-presets').glob('*.milk'))
 preset=next((p for p in presets if 'Confetti' in p.name),presets[0])
 status=evidence/f'audio-{mode}.json';history=evidence/f'audio-{mode}-history.json'
 seconds=70 if mode=='file' else 25
-binary=root/'build/milk-runner-visualizer-audio'
-if not binary.exists(): binary=root/'build/milk-runner-visualizer'
+binary=Path(os.environ.get('MILKRUNNER_TEST_BINARY',str(root/'build/milk-runner-visualizer')))
 env=os.environ.copy();env.update(LD_LIBRARY_PATH=str(root/'external/projectm-install/lib'),LIBGL_ALWAYS_SOFTWARE='1',QSG_RENDER_LOOP='basic',QSG_NO_VSYNC='1',QT_QPA_PLATFORM='xcb')
 # File test deliberately disables the audio server to establish independence.
 if mode=='file': env['PULSE_SERVER']='unix:/nonexistent/mycelium-file-test'
