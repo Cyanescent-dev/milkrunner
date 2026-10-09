@@ -34,6 +34,8 @@ public:
     float transitionDurationSeconds() const;
     QString statusMessage() const;
     QString diagnosticsText() const;
+    int diagnosticsIntervalFrames() const;
+    void setDiagnosticsIntervalFrames(int frames);
     bool takePendingAudio(QVector<float>& pcm, int& sampleRate, int& channels);
 
 public slots:
@@ -56,6 +58,7 @@ signals:
     void presetRenderConfirmed(const QString& presetPath, const QString& message);
 
 private:
+    int diagnosticsIntervalFrames_ = 30;
     float audioLevel_ = 0.0f;
     float renderScale_ = 1.0f;
     bool lowPowerMode_ = false;

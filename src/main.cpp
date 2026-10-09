@@ -130,6 +130,7 @@ int main(int argc, char* argv[])
     if (!automation.presets.isEmpty()) {
         auto* visual = engine.rootObjects().isEmpty() ? nullptr : engine.rootObjects().first()->findChild<OpenGlVisualizerItem*>("visualSurface");
         if (!visual) { QTextStream(stderr) << "Visual surface unavailable\n"; return 3; }
+        visual->setDiagnosticsIntervalFrames(5);
         struct State { int index = -1; bool confirmed = false; QString phase; QString error; QJsonArray events; };
         auto state = std::make_shared<State>();
         auto writeStatus = [&, state, visual]() {
@@ -187,6 +188,13 @@ int main(int argc, char* argv[])
             state->events.replace(state->events.size() - 1, event);
             if (!writeStatus()) fail("Cannot write automation status");
         });
+        // Keep current diagnostics observable during a short visual sweep even
+        // before the renderer's stronger 90-frame confirmation is reached.
+        auto* evidence = new QTimer(&app);
+        QObject::connect(evidence, &QTimer::timeout, &app, [writeStatus, fail]() {
+            if (!writeStatus()) fail("Cannot update automation evidence");
+        });
+        evidence->start(1000);
         auto* sequence = new QTimer(&app);
         QObject::connect(sequence, &QTimer::timeout, &app, [&, state, load, fail, sequence]() {
             if (!state->confirmed) { sequence->stop(); fail("Preset was not render-confirmed within its interval"); return; }

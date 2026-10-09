@@ -51,6 +51,7 @@ public:
         }
         visualizerItem_ = const_cast<OpenGlVisualizerItem*>(visualizer);
 
+        diagnosticsIntervalFrames_ = visualizer->diagnosticsIntervalFrames();
         audioLevel_ = visualizer->audioLevel();
         renderScale_ = visualizer->renderScale();
         lowPowerMode_ = visualizer->lowPowerMode();
@@ -484,7 +485,7 @@ private:
         if (frameCount == lastDiagnosticsFrameCount_ && backend == lastDiagnosticsBackend_) {
             return;
         }
-        if (frameCount % 30 != 0 && backend == lastDiagnosticsBackend_) {
+        if (frameCount % diagnosticsIntervalFrames_ != 0 && backend == lastDiagnosticsBackend_) {
             return;
         }
 
@@ -649,6 +650,7 @@ private:
     bool audioDirty_ = false;
     bool renderConfirmationPosted_ = false;
     bool glErrorFailurePosted_ = false;
+    int diagnosticsIntervalFrames_ = 30;
     std::uint64_t projectmFrameCount_ = 0;
     std::uint64_t fallbackFrameCount_ = 0;
     std::uint64_t presetLoadAttemptCount_ = 0;
@@ -712,6 +714,12 @@ QString OpenGlVisualizerItem::statusMessage() const
 QString OpenGlVisualizerItem::diagnosticsText() const
 {
     return diagnosticsText_;
+}
+
+int OpenGlVisualizerItem::diagnosticsIntervalFrames() const { return diagnosticsIntervalFrames_; }
+void OpenGlVisualizerItem::setDiagnosticsIntervalFrames(int frames) {
+    diagnosticsIntervalFrames_ = qBound(1, frames, 300);
+    update();
 }
 
 bool OpenGlVisualizerItem::takePendingAudio(QVector<float>& pcm, int& sampleRate, int& channels)
