@@ -19,6 +19,7 @@ bool AutomationOptions::parse(const QStringList& arguments, QString& error)
     parser.addOption({"preset", "Load one exact .milk file; repeat for a deterministic sequence.", "file"});
     parser.addOption({"list-presets", "List scanned preset identities as JSON without a desktop.", "folder"});
     parser.addOption({"preset-interval", "Seconds per preset in a sequence (5–120).", "seconds", "5"});
+    parser.addOption({"readiness-timeout", "Seconds allowed for actual render confirmation, independent of preset duration (1–180).", "seconds", "120"});
     parser.addOption({"automation-status", "Write atomic JSON state/confirmed identities here.", "file"});
     parser.addOption({"run-seconds", "Graceful timed shutdown (1..3600 seconds).", "seconds"});
     parser.addOption({"audio-file", "Decode local music directly to projectM.", "file"});
@@ -51,6 +52,8 @@ bool AutomationOptions::parse(const QStringList& arguments, QString& error)
     intervalSeconds = parser.value("preset-interval").toInt(&valid);
     if (!valid || intervalSeconds < 5 || intervalSeconds > 120 || presets.size() > 10) { error = "Invalid sequence timing/count"; return false; }
     if ((!listFolder.isEmpty() && !presets.isEmpty()) || (!statusFile.isEmpty() && presets.isEmpty())) { error = "Status requires presets; listing cannot launch presets"; return false; }
+    readinessTimeoutSeconds = parser.value("readiness-timeout").toInt(&valid);
+    if (!valid || readinessTimeoutSeconds < 1 || readinessTimeoutSeconds > 180) { error="Invalid --readiness-timeout (1–180 seconds)"; return false; }
     QSet<QString> hashes;
     for (QString& preset : presets) {
         const auto info = presetInfo(preset, error);

@@ -8,6 +8,7 @@ struct AutomationOptions {
     QString listFolder;
     QString statusFile;
     int intervalSeconds = 5;
+    int readinessTimeoutSeconds = 120;
     bool demoAudio = false;
     QString audioFile;
     QString audioSource;

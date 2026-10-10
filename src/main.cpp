@@ -13,6 +13,8 @@
 #include <QTextStream>
 #include <QTimer>
 #include <memory>
+#include <csignal>
+namespace { volatile std::sig_atomic_t terminateRequested = 0; void requestTermination(int) { terminateRequested = 1; } }
 #include <QPalette>
 #include <QColor>
 #include <QQmlApplicationEngine>
@@ -34,7 +36,7 @@ int main(int argc, char* argv[])
     }
     if (automation.help) {
         QTextStream(stdout) << "--list-presets FOLDER | --preset FILE [--preset FILE ...] "
-                              "[--preset-interval 5..120] [--automation-status FILE] [--demo-audio] [--audio-file FILE --audio-loop] [--audio-source system --audio-device default] [--list-audio-devices] [--run-seconds 1..3600]\n";
+                              "[--preset-interval 5..120] [--readiness-timeout 1..180] [--automation-status FILE] [--demo-audio] [--audio-file FILE --audio-loop] [--audio-source system --audio-device default] [--list-audio-devices] [--run-seconds 1..3600]\n";
         return 0;
     }
     if (automation.listAudioDevices) {
@@ -93,6 +95,12 @@ int main(int argc, char* argv[])
     darkPalette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 128, 142));
     app.setPalette(darkPalette);
 
+    if (!automation.presets.isEmpty()) {
+        std::signal(SIGTERM, requestTermination); std::signal(SIGINT, requestTermination);
+        auto* termination = new QTimer(&app);
+        QObject::connect(termination, &QTimer::timeout, &app, [&app]() { if (terminateRequested) app.quit(); });
+        termination->start(100);
+    }
     if (automation.runSeconds) QTimer::singleShot(automation.runSeconds*1000,&app,&QCoreApplication::quit);
     AppController controller;
     if (!automation.audioFile.isEmpty()) { if(!controller.useFileAudio(automation.audioFile,automation.audioLoop)) { QTextStream(stderr)<<controller.audioStatusMessage()<<'\n';return 3; } }
@@ -180,10 +188,13 @@ int main(int argc, char* argv[])
             state->phase = "failed"; state->error = error;
             writeStatus(); QTextStream(stderr) << error << '\n'; app.exit(3);
         };
-        auto load = [&, state, writeStatus, fail]() {
+        auto* readiness = new QTimer(&app); readiness->setSingleShot(true);
+        QObject::connect(readiness, &QTimer::timeout, &app, [fail]() { fail("Preset render readiness timed out"); });
+        auto load = [&, state, writeStatus, fail, readiness]() {
             ++state->index;
             if (state->index >= automation.presets.size()) return;
             state->confirmed = false; state->phase = "requested";
+            readiness->start(automation.readinessTimeoutSeconds * 1000);
             const QString preset = automation.presets.at(state->index);
             controller.presetLibrary()->setFilterText({});
             controller.presetLibrary()->setFavouritesOnly(false);
@@ -211,9 +222,9 @@ int main(int argc, char* argv[])
         QObject::connect(visual, &OpenGlVisualizerItem::presetFailed, &app, [&, state, fail](const QString& path, const QString& message) {
             if (state->index >= 0 && QFileInfo(path).canonicalFilePath() == automation.presets.at(state->index)) fail("Preset render failed: " + path + ": " + message);
         });
-        QObject::connect(visual, &OpenGlVisualizerItem::presetRenderConfirmed, &app, [&, state, writeStatus, fail](const QString& path, const QString& message) {
+        QObject::connect(visual, &OpenGlVisualizerItem::presetRenderConfirmed, &app, [&, state, writeStatus, fail, readiness](const QString& path, const QString& message) {
             if (state->index < 0 || state->confirmed || QFileInfo(path).canonicalFilePath() != automation.presets.at(state->index)) return;
-            state->confirmed = true; state->phase = "render_confirmed";
+            state->confirmed = true; state->phase = "render_confirmed"; readiness->stop();
             auto event = state->events.last().toObject();
             event.insert("confirmed_at", QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)); event.insert("message", message);
             state->events.replace(state->events.size() - 1, event);
@@ -228,7 +239,7 @@ int main(int argc, char* argv[])
         evidence->start(1000);
         auto* sequence = new QTimer(&app);
         QObject::connect(sequence, &QTimer::timeout, &app, [&, state, load, fail, sequence]() {
-            if (!state->confirmed) { sequence->stop(); fail("Preset was not render-confirmed within its interval"); return; }
+            if (!state->confirmed) return; // Readiness has its own timeout; slow software rendering is valid.
             if (state->index + 1 < automation.presets.size()) load();
             else sequence->stop(); // Hold final preset until managed stop.
         });

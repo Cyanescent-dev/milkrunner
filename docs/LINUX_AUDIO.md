@@ -101,3 +101,15 @@ are not implemented. Restart, real-time playback and average rendering FPS are.
 FFmpeg sample conversion follows the [libswresample API](https://ffmpeg.org/doxygen/6.1/group__lswr.html).
 
 Oracle acceptance receipt and returned PNGs: https://github.com/Cyanescent-dev/MyceliumWorkbench/blob/codex/linux-audio-support/cloud/docs/LINUX_AUDIO_ACCEPTANCE.md
+
+## Supervised graphical soaks
+
+Linux workers can use `scripts/run-visual-test.sh --preset FILE --audio-file FILE
+--audio-loop`. The script retains the real projectM backend and software OpenGL
+settings. Mycelium's desktop companion supplies a fresh private
+`MYCELIUM_VISUAL_STATUS` and safety `MYCELIUM_VISUAL_DURATION_SECONDS`; the script
+uses these without requiring the desktop account to write the workspace root.
+`--readiness-timeout 1..180` (default120) independently bounds the 90-frame
+confirmation; `--preset-interval` controls sequencing rather than imposing a
+five-second render deadline. In automation mode TERM/INT request a normal Qt
+shutdown so audio and final status are released/written cleanly.
